@@ -1,3 +1,4 @@
+import pickle
 import re
 import socketserver
 import time
@@ -59,13 +60,16 @@ class _CustomerConnectionHandler(socketserver.BaseRequestHandler):
         return msg.startswith("i want")
 
     def did_not_understand(self):
+        self.server_log("I did not understand")
         self.request.sendall("Sorry, I couldn't understand".encode())
 
     def we_dont_have_this(self, resource_name):
+        self.server_log("Not found")
         self.request.sendall(
             f"Sorry, we don't have {resource_name} at Pizza Place".encode())
 
     def greet_back(self):
+        self.server_log("Greeting the customer back")
         self.request.sendall(
             """
 Hello, welcome to Pizza Place :)
@@ -76,6 +80,7 @@ You can either ask for the menu or order a pizza using the pizza place chat bot.
     def send_menu(self):
         menu = self.pizza_knowledge.get_name_of_all_named_pizzas()
         menu_content = '\n'.join((f"  - {item}" for item in menu))
+        self.server_log("Sending menu")
         self.request.sendall(
             f"""
 Of course, here is the menu:
@@ -98,28 +103,8 @@ Of course, here is the menu:
         if pizza is None:
             return self.we_dont_have_this(pizza_name)
 
-        return self.request.sendall(f"{self.get_pizza_description(pizza)}".encode())
-
-    def get_pizza_description(self, pizza):
-
-        vegetarian_text = "🌿 It is a vegetarian pizza 🌿\n"
-        spicy_text = "🌶️  Be cautious. This is a spicy pizza 🌶️\n"
-        italian_pizza_text = "🤌  This is an authentic Italian pizza 🤌\n"
-
-        toppings = self.pizza_knowledge.get_topping_name_of_pizza(pizza)
-        is_vegetarian = self.pizza_knowledge.is_vegetarian(pizza)
-        is_spicy = self.pizza_knowledge.is_spicy(pizza)
-        is_italian = self.pizza_knowledge.is_italian(pizza)
-        return """
-Here it is your '{}' pizza!
-
-{}{}{}
-Ingredients:
-{}
-        """.format(pizza.name.title(), italian_pizza_text if is_italian else '',
-                   vegetarian_text if is_vegetarian else '',
-                   spicy_text if is_spicy else '',
-                   '\n'.join((f"  - {item}" for item in toppings)))
+        self.server_log(f"Sending pizza (storid: {pizza.storid})")
+        return self.request.sendall(pickle.dumps(pizza.storid))
 
 
 class _PizzaPlaceServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
@@ -127,7 +112,7 @@ class _PizzaPlaceServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 
 def get_pizza_place_multithreaded_tcp_server(host, port):
-    timeout_size = 60  # attempts
+    timeout_size=60  # attempts
     while timeout_size > 0:
         try:
             return _PizzaPlaceServer((host, port), _CustomerConnectionHandler)

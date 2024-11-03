@@ -22,24 +22,3 @@ class PizzaOntologyHandler:
             return None
 
         return pizzas[0]
-
-    def get_topping_name_of_pizza(self, pizza):
-        return [x.prefLabel.first().title() for x in pizza.hasTopping]
-
-    def is_pizza_subclass_of(self, pizza, subclass_name):
-        for super_class in pizza.ancestors():
-            if super_class.name == subclass_name:
-                return True
-        return False
-
-    def is_vegetarian(self, pizza):
-        return self.is_pizza_subclass_of(pizza, 'VegetarianPizza')
-
-    def is_spicy(self, pizza):
-        return self.is_pizza_subclass_of(pizza, 'SpicyPizza')
-
-    def is_italian(self, pizza):
-        return self.is_pizza_subclass_of(pizza, 'RealItalianPizza')
-
-
-onto = owlready2.get_ontology(PizzaOntologyHandler.OWL_URL).load()

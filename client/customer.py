@@ -12,13 +12,67 @@ to exit by typing "bye".
 @author Hugo Constantinopolos
 """
 
+import pickle
 import socket
-
-
-import time
 import sys
+import time
+
+import cowsay
+import owlready2
 
 HOST, PORT = "localhost", 9999
+OWL_URL = "https://protege.stanford.edu/ontologies/pizza/pizza.owl"
+
+
+def get_topping_name_of_pizza(pizza):
+    return [x.prefLabel.first().title() for x in pizza.hasTopping]
+
+
+def is_pizza_subclass_of(pizza, subclass_name):
+    for super_class in pizza.ancestors():
+        if super_class.name == subclass_name:
+            return True
+    return False
+
+
+def is_vegetarian(pizza):
+    return is_pizza_subclass_of(pizza, 'VegetarianPizza')
+
+
+def is_spicy(pizza):
+    return is_pizza_subclass_of(pizza, 'SpicyPizza')
+
+
+def is_italian(pizza):
+    return is_pizza_subclass_of(pizza, 'RealItalianPizza')
+
+
+def get_pizza_description(pizza):
+    vegetarian_text = "🌿 It is a vegetarian pizza 🌿"
+    spicy_text = "🌶️  I should be cautious. This is a spicy pizza 🌶️"
+    italian_pizza_text = "🤌  This is an authentic Italian pizza 🤌"
+
+    toppings = get_topping_name_of_pizza(pizza)
+    _is_vegetarian = is_vegetarian(pizza)
+    _is_spicy = is_spicy(pizza)
+    _is_italian = is_italian(pizza)
+
+    return """
+Look what a nice pizza that I've received!
+
+It's a {} Pizza
+
+{}
+
+{}
+
+{}
+
+Ingredients:
+{}""".format(pizza.name.title(), italian_pizza_text if _is_italian else '',
+                   vegetarian_text if _is_vegetarian else '',
+                   spicy_text if _is_spicy else '',
+                   '\n'.join((f"  - {item}" for item in toppings)))
 
 
 def get_open_pizzeria():
@@ -61,7 +115,11 @@ def get_order_message_from_cli():
     return input("> ")
 
 
-def order(sock):
+def customer_thoughts(message):
+    return '\n'.join(cowsay.cowthink(message, cow='tux', width=40).split('\n')[0:-7])
+
+
+def order(onto, sock):
     """
     @brief Handles the ordering process with the pizzeria.
 
@@ -77,8 +135,14 @@ def order(sock):
         if not order_msg:
             continue
         sock.sendall(bytes(order_msg, "utf-8"))
-        received = str(sock.recv(1024), "utf-8")
-        print(received)
+        received = sock.recv(1024)
+        try:
+            received = str(received, "utf-8")
+            print(received)
+        except UnicodeDecodeError:
+            received_pizza = onto.world._get_by_storid(pickle.loads(received))
+            owlready2.sync_reasoner_hermit(infer_property_values=True, debug=False)
+            print(customer_thoughts(get_pizza_description(received_pizza)))
 
 
 def main():
@@ -89,9 +153,10 @@ def main():
     the ordering process. Closes the socket connection when done.
     """
     print("Looking for an open pizzeria...")
+    onto = owlready2.get_ontology(OWL_URL).load()
     pizzeria = get_open_pizzeria()
     greet(pizzeria)
-    order(pizzeria)
+    order(onto, pizzeria)
     pizzeria.close()
 
 
